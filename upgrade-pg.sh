@@ -212,7 +212,18 @@ chown postgres:postgres "$PG_DATA" "$TMP_DIR"
 msg_ok "Directories ready: ${_B}${PG_DATA}${_R}, ${_B}${TMP_DIR}${_R}"
 
 step_banner 4 "initdb — new empty cluster"
-su -s /bin/bash -c "cd $(printf '%q' "$TMP_DIR") && initdb -D $(printf '%q' "$PG_DATA") --locale=en_US.UTF-8 --encoding=UTF8" - postgres
+# pg_upgrade requires old and new clusters to agree on data checksums; new PG defaults often enable them.
+old_checksum_ver="$(pg_controldata "$OLD_DATA_DIR" 2>/dev/null | sed -n 's/^Data page checksum version:[[:space:]]*//p' | head -1 | tr -d '[:space:]')"
+case "${old_checksum_ver:-0}" in '' | 0)
+        msg_info "Old cluster has data checksums off; using ${_B}--no-data-checksums${_R} on initdb."
+        initdb_checksum_opt=--no-data-checksums
+        ;;
+    *)
+        msg_info "Old cluster uses data checksums (version ${old_checksum_ver}); using ${_B}--data-checksums${_R} on initdb."
+        initdb_checksum_opt=--data-checksums
+        ;;
+esac
+su -s /bin/bash -c "cd $(printf '%q' "$TMP_DIR") && initdb -D $(printf '%q' "$PG_DATA") --locale=en_US.UTF-8 --encoding=UTF8 ${initdb_checksum_opt}" - postgres
 msg_ok "initdb completed."
 
 step_banner 5 "pg_upgrade --check"
