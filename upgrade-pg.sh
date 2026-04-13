@@ -128,6 +128,7 @@ preflight_before_stop() {
 
     OLD_DATA_DIR="${OLD_DATA_DIR_PREFIX}-${PG_VERSION}"
     OLD_BIN="/opt/pgsql-${PG_VERSION}/bin"
+    OLD_PG_LIB="/opt/pgsql-${PG_VERSION}/lib"
 
     [ ! -d "$OLD_DATA_DIR" ] || die "Old data directory already exists: $OLD_DATA_DIR (remove or rename it first)."
     [ ! -d "$TMP_DIR" ] || die "Tmp data directory already exists: $TMP_DIR (remove or rename it first)."
@@ -170,6 +171,31 @@ require_cluster_shutdown() {
     state="$(pg_controldata "$PG_DATA" 2>/dev/null | sed -n 's/^Database cluster state:[[:space:]]*//p' | head -1 | tr -d '\r')"
     [ -n "$state" ] || die "pg_controldata failed for $PG_DATA — is this a valid PostgreSQL data directory?"
     [ "$state" = "shut down" ] || die "Cluster is not shut down (pg_controldata: '$state'). Stop PostgreSQL and ensure no postgres processes remain."
+}
+
+# Arch wiki: postgresql-old-upgrade lib dir may lack PostGIS .so from the current postgis package.
+sync_postgis_libs_to_old_cluster() {
+    [ -d "$OLD_PG_LIB" ] || die "Old cluster lib directory missing: $OLD_PG_LIB"
+    local -a libs=()
+    shopt -s nullglob
+    libs=(/usr/lib/postgresql/postgis*.so /usr/lib/postgresql/rtpostgis*.so)
+    shopt -u nullglob
+    local have_pkg=0
+    command -v pacman >/dev/null 2>&1 && pacman -Q postgis &>/dev/null && have_pkg=1
+
+    if [ "${#libs[@]}" -eq 0 ] && [ "$have_pkg" -eq 0 ]; then
+        return 0
+    fi
+    if [ "${#libs[@]}" -eq 0 ]; then
+        die "Package postgis is installed but no postgis*.so or rtpostgis*.so under /usr/lib/postgresql/. Install or fix the postgis package, then retry."
+    fi
+    msg_info "PostGIS present: copying extension .so files into ${_B}${OLD_PG_LIB}${_R} (Arch wiki)."
+    local f
+    for f in "${libs[@]}"; do
+        msg_info "Copying ${_B}${f}${_R} → ${_B}${OLD_PG_LIB}/${_R}"
+        cp -a "$f" "$OLD_PG_LIB/"
+    done
+    msg_ok "PostGIS library sync into ${OLD_PG_LIB} finished."
 }
 
 print_overview
@@ -227,6 +253,7 @@ su -s /bin/bash -c "cd $(printf '%q' "$TMP_DIR") && initdb -D $(printf '%q' "$PG
 msg_ok "initdb completed."
 
 step_banner 5 "pg_upgrade --check"
+sync_postgis_libs_to_old_cluster
 su -s /bin/bash -c "pg_upgrade --check -b $(printf '%q' "$OLD_BIN") -B /usr/bin -d $(printf '%q' "$OLD_DATA_DIR") -D $(printf '%q' "$PG_DATA")" - postgres
 msg_ok "pg_upgrade --check passed."
 

@@ -17,6 +17,7 @@ curl -s https://raw.githubusercontent.com/AlienGen/archlinux-postupgrade-pg/refs
 - Archlinux system
 - Both the old [postgresql-old-upgrade](https://archlinux.org/packages/?name=postgresql-old-upgrade) and new [postgresql](https://archlinux.org/packages/?name=postgresql) PostgreSQL packages installed
 - Sufficient disk space for a full database backup
+- If **[PostGIS](https://archlinux.org/packages/?name=postgis)** is installed, the script copies its PostgreSQL extension libraries into the old upgrade tree so `pg_upgrade` can run (same idea as the [Arch wiki](https://wiki.archlinux.org/title/PostgreSQL#Upgrading_PostgreSQL)).
 
 ## How it works?
 
@@ -50,4 +51,4 @@ Feel free to contribute to the script by opening a PR or an issue on GitHub.
 
 ## License
 
-This script is licensed under the GPLv3 license. See the LICENSE file for details.
+This script is licensed under the GPLv3 license. See the [LICENSE](LICENSE) file for details.
