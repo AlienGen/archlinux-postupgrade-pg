@@ -144,7 +144,8 @@ preflight_before_stop() {
     [ -x "$OLD_BIN/postgres" ] || die "Not executable: $OLD_BIN/postgres"
 
     local old_major
-    old_major="$("$OLD_BIN/postgres" --version 2>/dev/null | sed -n 's/^.*PostgreSQL \([0-9][0-9]*\)\..*$/\1/p')"
+    # e.g. "postgres (PostgreSQL) 17.9" or "PostgreSQL 17.2" — not always "PostgreSQL <digit>"
+    old_major="$("$OLD_BIN/postgres" --version 2>/dev/null | sed -n 's/^.*PostgreSQL[^0-9]*\([0-9][0-9]*\).*/\1/p')"
     [ -n "$old_major" ] || die "Could not parse major version from $OLD_BIN/postgres --version"
     [ "$old_major" = "$PG_VERSION" ] || die "Mismatch: $PG_DATA/PG_VERSION is $PG_VERSION but $OLD_BIN/postgres reports major $old_major"
 
